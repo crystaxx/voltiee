@@ -127,6 +127,17 @@ async def whatisname(ctx):
 # Run Flask server in a separate thread to keep the bot alive
 Thread(target=run).start()
 
+def run_bot():
+    try:
+        bot.run(os.getenv("DISCORD_BOT_TOKEN"))
+    except Exception as e:
+        print(f"Bot crashed due to: {e}")
+        time.sleep(5)  # Wait a bit before restarting
+        run_bot()  # Restart the bot if it crashes
+
+if __name__ == "__main__":
+    run_bot()
+    
 # Run the bot
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 bot.run(TOKEN)
