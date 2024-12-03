@@ -81,15 +81,16 @@ async def cookie_reactor():
         for guild in bot.guilds:
             for channel in guild.text_channels:
                 try:
-                    messages = await channel.history(limit=20).flatten()
+                    # Fetch recent messages using async generator
+                    messages = [message async for message in channel.history(limit=20)]
                     if messages:
                         random_message = random.choice(messages)
                         await random_message.add_reaction("🍪")
                         print(f"Reacted to a message in {channel.name}")
+                        break  # React in one channel per guild
                 except Exception as e:
                     print(f"Error in cookie_reactor: {e}")
         await asyncio.sleep(30)
-
 
 # 7. Restart command
 @bot.command()
