@@ -1,143 +1,117 @@
 import discord
-from discord.ext import commands, tasks
-import asyncio
 import os
+import random
+import asyncio
+import time
 from datetime import datetime
+from discord.ext import commands
 from flask import Flask
 from threading import Thread
 
-# Set up the Flask app to keep the bot alive
-app = Flask('')
-
-@app.route('/')
-def home():
-    return "Bot is running!"
-
-def run():
-    app.run(host='0.0.0.0', port=8080)
-
-# Set up your bot
+# Intents setup
 intents = discord.Intents.default()
-intents.message_content = True
-intents.messages = True  # Make sure this is enabled to react to messages
+intents.messages = True
+intents.message_content = True  # Required for reading message content
+
+# Bot setup
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Store the bot's start time to calculate uptime
-start_time = datetime.now()
+start_time = time.time()  # Track the bot's uptime
+
 
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user}')
-    # Start the background task when the bot is ready
-    react_to_messages.start()
+    bot.loop.create_task(cookie_reactor())  # Start cookie reactor
+    print("Bot is running!")
 
+
+# 1. Respond to "What is your name?"
 @bot.event
 async def on_message(message):
-    # This prevents the bot from reacting to its own messages
-    if message.author == bot.user:
+    if message.author.bot:
         return
-    # Process commands as usual
-    await bot.process_commands(message)
 
-@tasks.loop(seconds=30)  # This loop runs every 30 seconds
-async def react_to_messages():
-    """The bot reacts to the latest message in every channel every 30 seconds."""
-    for channel in bot.get_all_channels():
-        if isinstance(channel, discord.TextChannel):
-            # Get the most recent message in the channel
-            async for message in channel.history(limit=1):
-                try:
-                    # React with the cookie emoji 🍪
-                    await message.add_reaction('🍪')
-                except discord.errors.Forbidden:
-                    # If the bot doesn't have permission to react, it will ignore that channel
-                    print(f"Bot doesn't have permission to react in {channel.name}")
+    if message.content.lower() == "what is your name?":
+        await message.channel.send("My name is Voltiee <3")
 
-# Say command: The bot will repeat whatever you say
+    await bot.process_commands(message)  # Process other commands
+
+
+# 2. Set an alarm
+@bot.command()
+async def alarm(ctx, time_in_seconds: int, *, message: str):
+    """Set an alarm."""
+    await ctx.send(f"Alarm set for {time_in_seconds} seconds!")
+    await asyncio.sleep(time_in_seconds)
+    await ctx.send(f"⏰ Alarm! {message}")
+
+
+# 3. Set a timer
+@bot.command()
+async def timer(ctx, time_in_seconds: int):
+    """Set a timer."""
+    await ctx.send(f"Timer started for {time_in_seconds} seconds!")
+    await asyncio.sleep(time_in_seconds)
+    await ctx.send("⏰ Time's up!")
+
+
+# 4. Send a user-defined message
 @bot.command()
 async def say(ctx, *, message: str):
-    """Bot will repeat whatever you say."""
+    """Command for the bot to say something."""
     await ctx.send(message)
 
-# Set Alarm command: The bot will set a reminder to send a message after a specified delay
-@bot.command()
-async def setalarm(ctx, time: str, *, message: str):
-    """Set an alarm that will remind you after a specified time (in minutes)."""
-    try:
-        # Convert the given time to an integer (minutes)
-        alarm_time = int(time)
-        if alarm_time <= 0:
-            await ctx.send("Please provide a positive number of minutes.")
-            return
-        
-        await ctx.send(f"Alarm set! I will remind you in {alarm_time} minute(s).")
 
-        # Wait for the given amount of time (in seconds)
-        await asyncio.sleep(alarm_time * 60)
-
-        # Send the reminder
-        await ctx.send(f"Reminder: {message}")
-
-    except ValueError:
-        await ctx.send("Please provide a valid number of minutes.")
-
-# Timer command: The bot will start a timer for the specified number of minutes
-@bot.command()
-async def timer(ctx, time: str):
-    """Set a timer and the bot will remind you when time is up (in minutes)."""
-    try:
-        # Convert the time to minutes
-        timer_time = int(time)
-        if timer_time <= 0:
-            await ctx.send("Please provide a positive number of minutes.")
-            return
-        
-        await ctx.send(f"Timer started for {timer_time} minute(s). I'll remind you when it's over.")
-
-        # Wait for the timer to finish
-        await asyncio.sleep(timer_time * 60)
-
-        # Notify the user when the timer is up
-        await ctx.send("Time's up!")
-
-    except ValueError:
-        await ctx.send("Please provide a valid number of minutes.")
-
-# Uptime command: The bot will tell you how long it's been running
+# 5. Uptime command
 @bot.command()
 async def uptime(ctx):
-    """Tells you how long the bot has been online."""
-    current_time = datetime.now()
-    uptime_duration = current_time - start_time
+    """Check the bot's uptime."""
+    current_time = time.time()
+    uptime_seconds = int(current_time - start_time)
+    uptime_string = str(datetime.utcfromtimestamp(uptime_seconds).strftime("%H:%M:%S"))
+    await ctx.send(f"I've been running for {uptime_string}!")
 
-    # Format the uptime duration into hours, minutes, and seconds
-    days = uptime_duration.days
-    hours, remainder = divmod(uptime_duration.seconds, 3600)
-    minutes, seconds = divmod(remainder, 60)
 
-    # Send the uptime message
-    await ctx.send(f"I've been running for {days} days, {hours} hours, {minutes} minutes, and {seconds} seconds.")
+# 6. Cookie Reactor
+async def cookie_reactor():
+    """React to a random message in each channel every 30 seconds."""
+    await bot.wait_until_ready()
+    while True:
+        for guild in bot.guilds:
+            for channel in guild.text_channels:
+                try:
+                    messages = await channel.history(limit=20).flatten()
+                    if messages:
+                        random_message = random.choice(messages)
+                        await random_message.add_reaction("🍪")
+                        print(f"Reacted to a message in {channel.name}")
+                except Exception as e:
+                    print(f"Error in cookie_reactor: {e}")
+        await asyncio.sleep(30)
 
-# Respond to "What is your name?"
+
+# 7. Restart command
 @bot.command()
-async def whatisname(ctx):
-    """Responds with the bot's name."""
-    await ctx.send("My name is Voltiee <3")
+async def restart(ctx):
+    """Restart the bot."""
+    await ctx.send("Restarting...")
+    os.execv(sys.executable, ['python'] + sys.argv)  # Restarts the bot
 
-# Run Flask server in a separate thread to keep the bot alive
+
+# 8. Flask server for uptime monitoring
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "I'm alive!"
+
+def run():
+    app.run(host="0.0.0.0", port=8080)
+
+# Run the Flask server in a separate thread
 Thread(target=run).start()
 
-def run_bot():
-    try:
-        bot.run(os.getenv("DISCORD_BOT_TOKEN"))
-    except Exception as e:
-        print(f"Bot crashed due to: {e}")
-        time.sleep(5)  # Wait a bit before restarting
-        run_bot()  # Restart the bot if it crashes
 
-if __name__ == "__main__":
-    run_bot()
-    
 # Run the bot
-TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-bot.run(TOKEN)
+bot.run(os.getenv("DISCORD_BOT_TOKEN"))
