@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 import asyncio
 import os
 from datetime import datetime
@@ -19,6 +19,7 @@ def run():
 # Set up your bot
 intents = discord.Intents.default()
 intents.message_content = True
+intents.messages = True  # Make sure this is enabled to react to messages
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # Store the bot's start time to calculate uptime
@@ -27,8 +28,32 @@ start_time = datetime.now()
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user}')
+    # Start the background task when the bot is ready
+    react_to_messages.start()
 
-# Say command: The bot repeats the given message
+@bot.event
+async def on_message(message):
+    # This prevents the bot from reacting to its own messages
+    if message.author == bot.user:
+        return
+    # Process commands as usual
+    await bot.process_commands(message)
+
+@tasks.loop(seconds=30)  # This loop runs every 30 seconds
+async def react_to_messages():
+    """The bot reacts to the latest message in every channel every 30 seconds."""
+    for channel in bot.get_all_channels():
+        if isinstance(channel, discord.TextChannel):
+            # Get the most recent message in the channel
+            async for message in channel.history(limit=1):
+                try:
+                    # React with the cookie emoji 🍪
+                    await message.add_reaction('🍪')
+                except discord.errors.Forbidden:
+                    # If the bot doesn't have permission to react, it will ignore that channel
+                    print(f"Bot doesn't have permission to react in {channel.name}")
+
+# Say command: The bot will repeat whatever you say
 @bot.command()
 async def say(ctx, *, message: str):
     """Bot will repeat whatever you say."""
@@ -38,7 +63,6 @@ async def say(ctx, *, message: str):
 @bot.command()
 async def setalarm(ctx, time: str, *, message: str):
     """Set an alarm that will remind you after a specified time (in minutes)."""
-    
     try:
         # Convert the given time to an integer (minutes)
         alarm_time = int(time)
@@ -61,7 +85,6 @@ async def setalarm(ctx, time: str, *, message: str):
 @bot.command()
 async def timer(ctx, time: str):
     """Set a timer and the bot will remind you when time is up (in minutes)."""
-    
     try:
         # Convert the time to minutes
         timer_time = int(time)
