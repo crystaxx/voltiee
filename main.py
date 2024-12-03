@@ -1,10 +1,5 @@
 import discord
 from discord.ext import commands
-
-# Define intents
-intents = discord.Intents.default()
-intents.message_content = True  # Enable message content intent
-
 import asyncio
 import os
 from datetime import datetime
@@ -43,14 +38,14 @@ async def say(ctx, *, message: str):
 @bot.command()
 async def setalarm(ctx, time: str, *, message: str):
     """Set an alarm that will remind you after a specified time (in minutes)."""
-
+    
     try:
         # Convert the given time to an integer (minutes)
         alarm_time = int(time)
         if alarm_time <= 0:
             await ctx.send("Please provide a positive number of minutes.")
             return
-
+        
         await ctx.send(f"Alarm set! I will remind you in {alarm_time} minute(s).")
 
         # Wait for the given amount of time (in seconds)
@@ -58,6 +53,29 @@ async def setalarm(ctx, time: str, *, message: str):
 
         # Send the reminder
         await ctx.send(f"Reminder: {message}")
+
+    except ValueError:
+        await ctx.send("Please provide a valid number of minutes.")
+
+# Timer command: The bot will start a timer for the specified number of minutes
+@bot.command()
+async def timer(ctx, time: str):
+    """Set a timer and the bot will remind you when time is up (in minutes)."""
+    
+    try:
+        # Convert the time to minutes
+        timer_time = int(time)
+        if timer_time <= 0:
+            await ctx.send("Please provide a positive number of minutes.")
+            return
+        
+        await ctx.send(f"Timer started for {timer_time} minute(s). I'll remind you when it's over.")
+
+        # Wait for the timer to finish
+        await asyncio.sleep(timer_time * 60)
+
+        # Notify the user when the timer is up
+        await ctx.send("Time's up!")
 
     except ValueError:
         await ctx.send("Please provide a valid number of minutes.")
@@ -76,6 +94,12 @@ async def uptime(ctx):
 
     # Send the uptime message
     await ctx.send(f"I've been running for {days} days, {hours} hours, {minutes} minutes, and {seconds} seconds.")
+
+# Respond to "What is your name?"
+@bot.command()
+async def whatisname(ctx):
+    """Responds with the bot's name."""
+    await ctx.send("My name is Voltiee <3")
 
 # Run Flask server in a separate thread to keep the bot alive
 Thread(target=run).start()
